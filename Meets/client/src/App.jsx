@@ -38,7 +38,7 @@ function App() {
         return res.json()
       })
       .then(data => {
-        setProfiles(data)
+        setProfiles(data || [])
         setLoading(false)
       })
       .catch(err => {

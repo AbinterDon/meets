@@ -21,7 +21,10 @@ const AuthScreen = ({ onLogin }) => {
             });
 
             if (!res.ok) {
-                throw new Error(isRegistering ? 'Registration failed (Username taken?)' : 'Invalid credentials');
+                const errorText = await res.text();
+                // If it's pure text, use it. If it's JSON (unexpected), handle it gracefully?
+                // http.Error returns plain text usually with a newline.
+                throw new Error(errorText.trim() || (isRegistering ? 'Registration failed' : 'Login failed'));
             }
 
             if (isRegistering) {

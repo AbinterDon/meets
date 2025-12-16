@@ -79,7 +79,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	token, err := h.authUsecase.Login(r.Context(), creds.Username, creds.Password)
 	if err != nil {
-		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		// Taking user feedback seriously: return specific error
+		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 

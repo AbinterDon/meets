@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"meets/server/internal/domain"
@@ -39,11 +40,11 @@ func (uc *AuthUsecase) Register(ctx context.Context, username, password string) 
 func (uc *AuthUsecase) Login(ctx context.Context, username, password string) (string, error) {
 	storedUser, err := uc.userRepo.GetByUsername(ctx, username)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("User not found")
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(storedUser.PasswordHash), []byte(password)); err != nil {
-		return "", err
+		return "", fmt.Errorf("Incorrect password")
 	}
 
 	expirationTime := time.Now().Add(24 * time.Hour)
