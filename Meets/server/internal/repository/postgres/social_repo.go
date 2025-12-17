@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"meets/server/internal/domain"
 )
@@ -44,10 +45,22 @@ func (r *socialRepository) CreateMatch(ctx context.Context, user1ID int, user2ID
 
 func (r *socialRepository) GetMatches(ctx context.Context, userID int) ([]domain.User, error) {
 	query := `
-		SELECT u.id, u.username, u.name, COALESCE(u.image_url, '')
+		SELECT 
+			u.id, u.username, u.name, COALESCE(u.image_url, ''),
+			COALESCE(last_msg.content, '') as last_message,
+			COALESCE(last_msg.created_at, '1970-01-01'::timestamp) as last_message_time,
+			(SELECT COUNT(*) FROM messages m2 WHERE m2.sender_id = u.id AND m2.receiver_id = $1 AND m2.is_read = FALSE) as unread_count
 		FROM matches m
 		JOIN users u ON (CASE WHEN m.user1_id = $1 THEN m.user2_id ELSE m.user1_id END) = u.id
+		LEFT JOIN LATERAL (
+			SELECT content, created_at 
+			FROM messages m3 
+			WHERE (m3.sender_id = $1 AND m3.receiver_id = u.id) OR (m3.sender_id = u.id AND m3.receiver_id = $1)
+			ORDER BY created_at DESC 
+			LIMIT 1
+		) last_msg ON true
 		WHERE m.user1_id = $1 OR m.user2_id = $1
+		ORDER BY last_message_time DESC, u.username ASC
 	`
 	rows, err := r.db.QueryContext(ctx, query, userID)
 	if err != nil {
@@ -60,11 +73,19 @@ func (r *socialRepository) GetMatches(ctx context.Context, userID int) ([]domain
 		var u domain.User
 		var img sql.NullString
 		var name sql.NullString
-		if err := rows.Scan(&u.ID, &u.Username, &name, &img); err != nil {
+		var lastMsg sql.NullString
+		var lastMsgTime time.Time
+		var unreadCount int
+
+		if err := rows.Scan(&u.ID, &u.Username, &name, &img, &lastMsg, &lastMsgTime, &unreadCount); err != nil {
 			continue
 		}
 		u.Name = name.String
 		u.ImageURL = img.String
+		u.LastMessage = lastMsg.String
+		u.LastMessageTime = lastMsgTime
+		u.UnreadCount = unreadCount
+
 		matches = append(matches, u)
 	}
 	return matches, nil

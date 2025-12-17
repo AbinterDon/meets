@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from 'react';
 
-const ProfileEditor = ({ token }) => {
+interface ProfileEditorProps {
+    token: string;
+}
+
+const ProfileEditor: React.FC<ProfileEditorProps> = ({ token }) => {
     const [profile, setProfile] = useState({
         name: '',
         age: '',
         gender: '',
         bio: '',
-        image_url: ''
+        image_url: '',
+        interests: [] as string[]
     });
     const [message, setMessage] = useState('');
     const [uploading, setUploading] = useState(false);
+    const [newInterest, setNewInterest] = useState('');
 
     const apiHost = `http://${window.location.hostname}:8080`;
 
@@ -20,16 +26,17 @@ const ProfileEditor = ({ token }) => {
             .then(res => res.json())
             .then(data => setProfile({
                 name: data.name || '',
-                age: data.age || '',
+                age: (data.age || '').toString(),
                 gender: data.gender || '',
                 bio: data.bio || '',
-                image_url: data.image_url || ''
+                image_url: data.image_url || '',
+                interests: data.interests || []
             }))
             .catch(err => console.error(err));
     }, [token]);
 
-    const handleFileChange = async (e) => {
-        const file = e.target.files[0];
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
         if (!file) return;
 
         const formData = new FormData();
@@ -57,7 +64,18 @@ const ProfileEditor = ({ token }) => {
         }
     };
 
-    const handleSubmit = async (e) => {
+    const handleAddInterest = () => {
+        if (newInterest.trim() && !profile.interests.includes(newInterest.trim())) {
+            setProfile(prev => ({ ...prev, interests: [...prev.interests, newInterest.trim()] }));
+            setNewInterest('');
+        }
+    };
+
+    const handleRemoveInterest = (interest: string) => {
+        setProfile(prev => ({ ...prev, interests: prev.interests.filter(i => i !== interest) }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
             const res = await fetch(`${apiHost}/api/me`, {
@@ -143,6 +161,40 @@ const ProfileEditor = ({ token }) => {
                         value={profile.bio}
                         onChange={e => setProfile({ ...profile, bio: e.target.value })}
                     />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Interests</label>
+                    <div className="flex gap-2 mt-1">
+                        <input
+                            type="text"
+                            className="flex-1 p-2 border rounded-md"
+                            placeholder="Add an interest..."
+                            value={newInterest}
+                            onChange={e => setNewInterest(e.target.value)}
+                            onKeyPress={e => e.key === 'Enter' && (e.preventDefault(), handleAddInterest())}
+                        />
+                        <button
+                            type="button"
+                            onClick={handleAddInterest}
+                            className="bg-violet-500 text-white px-4 py-2 rounded-md hover:bg-violet-600"
+                        >
+                            Add
+                        </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                        {profile.interests.map(interest => (
+                            <span key={interest} className="bg-violet-100 text-violet-800 px-3 py-1 rounded-full text-sm flex items-center">
+                                {interest}
+                                <button
+                                    type="button"
+                                    onClick={() => handleRemoveInterest(interest)}
+                                    className="ml-2 text-violet-600 hover:text-violet-900 font-bold"
+                                >
+                                    &times;
+                                </button>
+                            </span>
+                        ))}
+                    </div>
                 </div>
                 <button
                     type="submit"

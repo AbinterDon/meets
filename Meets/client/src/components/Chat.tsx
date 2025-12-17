@@ -1,14 +1,24 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import MatchList from './MatchList';
+import { User, Message } from '../types';
 
-const Chat = ({ user }) => {
-    const [messages, setMessages] = useState([])
+interface ChatProps {
+    user: string | null;
+}
+
+interface WSMessage extends Message {
+    type?: string;
+    to?: string;
+}
+
+const Chat: React.FC<ChatProps> = ({ user }) => {
+    const [messages, setMessages] = useState<WSMessage[]>([])
     const [input, setInput] = useState('')
-    const [socket, setSocket] = useState(null)
-    const [targetUser, setTargetUser] = useState(null) // Object with username, name, image_url
+    const [socket, setSocket] = useState<WebSocket | null>(null)
+    const [targetUser, setTargetUser] = useState<User | null>(null) // Object with username, name, image_url
 
-    const messagesEndRef = useRef(null)
+    const messagesEndRef = useRef<HTMLDivElement>(null)
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -18,22 +28,34 @@ const Chat = ({ user }) => {
         scrollToBottom()
     }, [messages])
 
-    // Load History when selecting a user
+
+    // Load History & Mark Read
     useEffect(() => {
         if (!targetUser) return;
 
-        setMessages([]); // Clear previous
         const apiHost = `http://${window.location.hostname}:8080`;
-        fetch(`${apiHost}/api/messages?other_user=${targetUser.username}`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        })
+        const headers = {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+        };
+
+        // 1. Mark as Read
+        fetch(`${apiHost}/api/messages/mark_read`, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({ other_user: targetUser.username })
+        }).catch(err => console.error("Failed to mark read", err));
+
+        // 2. Fetch History
+        fetch(`${apiHost}/api/messages?other_user=${targetUser.username}`, { headers })
             .then(res => res.json())
             .then(data => {
-                // Convert to UI format
-                const formatted = (data || []).map(m => ({
+                const formatted: WSMessage[] = (data || []).map((m: any) => ({
                     id: m.id,
                     from: m.sender,
                     content: m.content,
+                    created_at: m.created_at,
+                    is_read: m.is_read,
                     type: 'message'
                 }));
                 setMessages(formatted);
@@ -42,66 +64,58 @@ const Chat = ({ user }) => {
     }, [targetUser]);
 
     useEffect(() => {
-        // Determine WS protocol based on window protocol
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsHost = `${protocol}//${window.location.hostname}:8080/ws`;
-
-        console.log(`Connecting to WebSocket at ${wsHost}...`)
         const newSocket = new WebSocket(wsHost)
 
         newSocket.onopen = () => {
-            console.log('Connected to WebSocket')
-            // Send login message
-            newSocket.send(JSON.stringify({
-                type: 'login',
-                content: user
-            }))
+            newSocket.send(JSON.stringify({ type: 'login', content: user }))
         }
 
         newSocket.onmessage = (event) => {
             const msg = JSON.parse(event.data)
-            console.log('Received:', msg)
-
-            // We only care about chat messages here
             if (msg.from) {
+                // If we are chatting with this user, or if it's a new message, we append
+                // Ideally we should also mark as read if active?
+                // For now just append.
                 setMessages(prev => [...prev, msg])
             }
         }
-
-        newSocket.onclose = () => console.log('WebSocket disconnected')
-        newSocket.onerror = (err) => console.error('WebSocket error:', err)
-
         setSocket(newSocket)
-
         return () => newSocket.close()
     }, [user])
 
-    const sendMessage = (e) => {
+    const sendMessage = (e: React.FormEvent | React.KeyboardEvent) => {
         e.preventDefault()
         if (!input.trim() || !socket || !targetUser) return
 
-        const msg = {
+        const msg: WSMessage = {
+            id: Date.now(), // Temp ID
             type: 'message',
             to: targetUser.username,
             content: input,
-            from: user
+            from: user || '',
+            created_at: new Date().toISOString(), // Optimistic timestamp
+            is_read: false
         }
 
         socket.send(JSON.stringify(msg))
-
-        // Optimistic update
         setMessages(prev => [...prev, msg])
         setInput('')
-
-        // IME fix is handled by input element logic usually, but here we just send on submit
     }
 
-    const handleKeyPress = (e) => {
+    const handleKeyPress = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
             sendMessage(e);
         }
     }
+
+    const formatTime = (isoString: string) => {
+        if (!isoString) return '';
+        const date = new Date(isoString);
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
 
     return (
         <div className="flex w-full h-[600px] max-w-4xl bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
@@ -127,15 +141,44 @@ const Chat = ({ user }) => {
                         <div className="flex-1 overflow-y-auto p-4 space-y-4">
                             {messages.map((msg, index) => {
                                 const isMe = msg.from === user;
+                                const currentDate = new Date(msg.created_at).toLocaleDateString();
+                                const prevDate = index > 0 ? new Date(messages[index - 1].created_at).toLocaleDateString() : null;
+                                const showDateSeparator = currentDate !== prevDate;
+
+                                const dateLabel = (() => {
+                                    const today = new Date().toLocaleDateString();
+                                    const yesterday = new Date(Date.now() - 86400000).toLocaleDateString();
+                                    if (currentDate === today) return "Today";
+                                    if (currentDate === yesterday) return "Yesterday";
+                                    return currentDate;
+                                })();
+
                                 return (
-                                    <div key={index} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[70%] px-4 py-2 rounded-2xl text-sm shadow-sm ${isMe
-                                            ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white rounded-br-none'
-                                            : 'bg-white text-gray-800 border border-gray-100 rounded-bl-none'
-                                            }`}>
-                                            {msg.content}
+                                    <React.Fragment key={index}>
+                                        {showDateSeparator && (
+                                            <div className="flex justify-center my-4">
+                                                <span className="bg-gray-200 text-gray-500 text-xs px-3 py-1 rounded-full">
+                                                    {dateLabel}
+                                                </span>
+                                            </div>
+                                        )}
+                                        <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                                            <div className={`max-w-[70%] px-4 py-2 rounded-2xl text-sm shadow-sm ${isMe
+                                                ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white rounded-br-none'
+                                                : 'bg-white text-gray-800 border border-gray-100 rounded-bl-none'
+                                                }`}>
+                                                {msg.content}
+                                            </div>
+                                            <div className="text-[10px] text-gray-400 mt-1 flex items-center gap-1 px-1">
+                                                {formatTime(msg.created_at)}
+                                                {isMe && (
+                                                    <span className={msg.is_read ? "text-violet-500" : "text-gray-300"}>
+                                                        {msg.is_read ? '✓✓' : '✓'}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
+                                    </React.Fragment>
                                 );
                             })}
                             <div ref={messagesEndRef} />

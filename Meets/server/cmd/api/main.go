@@ -71,6 +71,8 @@ func main() {
 	// Routes
 	http.HandleFunc("/api/register", authHandler.Register)
 	http.HandleFunc("/api/login", authHandler.Login)
+	http.HandleFunc("/api/forgot-password", authHandler.ForgotPassword)
+	http.HandleFunc("/api/reset-password", authHandler.ResetPassword)
 	http.HandleFunc("/api/me", withAuth(profileHandler.HandleProfile))
 	http.HandleFunc("/api/upload", withAuth(profileHandler.Upload))
 
@@ -78,6 +80,7 @@ func main() {
 	http.HandleFunc("/api/like", withAuth(socialHandler.Like))
 	http.HandleFunc("/api/matches", withAuth(socialHandler.GetMatches))
 	http.HandleFunc("/api/messages", withAuth(socialHandler.GetMessages))
+	http.HandleFunc("/api/messages/mark_read", withAuth(socialHandler.MarkRead))
 
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		websocket_handler.ServeWs(hub, w, r)

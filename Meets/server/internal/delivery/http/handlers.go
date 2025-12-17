@@ -31,6 +31,7 @@ func NewAuthHandler(uc *usecase.AuthUsecase) *AuthHandler {
 type Credentials struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Email    string `json:"email"` // Optional for now?
 }
 
 type TokenResponse struct {
@@ -54,11 +55,69 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.authUsecase.Register(r.Context(), creds.Username, creds.Password); err != nil {
-		http.Error(w, "Username likely taken", http.StatusConflict)
+	if err := h.authUsecase.Register(r.Context(), creds.Username, creds.Password, creds.Email); err != nil {
+		http.Error(w, "Username or Email likely taken", http.StatusConflict)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
+}
+
+type ForgotRequest struct {
+	Email string `json:"email"`
+}
+
+func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w)
+	if r.Method == "OPTIONS" {
+		return
+	}
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req ForgotRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.authUsecase.ForgotPassword(r.Context(), req.Email); err != nil {
+		// Log internal err
+		fmt.Println("Forgot Password Error:", err)
+	}
+	// Always return OK to prevent enumeration
+	w.WriteHeader(http.StatusOK)
+}
+
+type ResetRequest struct {
+	Email       string `json:"email"`
+	Code        string `json:"code"`
+	NewPassword string `json:"new_password"`
+}
+
+func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w)
+	if r.Method == "OPTIONS" {
+		return
+	}
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req ResetRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.authUsecase.ResetPassword(r.Context(), req.Email, req.Code, req.NewPassword); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
@@ -267,4 +326,33 @@ func (h *SocialHandler) GetMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	json.NewEncoder(w).Encode(msgs)
+}
+
+type MarkReadRequest struct {
+	OtherUser string `json:"other_user"`
+}
+
+func (h *SocialHandler) MarkRead(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w)
+	if r.Method == "OPTIONS" {
+		return
+	}
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	username := r.Context().Value("username").(string)
+	var req MarkReadRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.chatUsecase.MarkMessagesAsRead(r.Context(), username, req.OtherUser); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }

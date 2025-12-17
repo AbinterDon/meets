@@ -1,36 +1,45 @@
 import React, { useState } from 'react';
+import ForgotPassword from './ForgotPassword';
+import ResetPassword from './ResetPassword';
 
-const AuthScreen = ({ onLogin }) => {
-    const [isRegistering, setIsRegistering] = useState(false);
+interface AuthScreenProps {
+    onLogin: (token: string, username: string) => void;
+}
+
+const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
+    const [view, setView] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
+    const [emailForReset, setEmailForReset] = useState('');
+
+    // Login/Register States
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [email, setEmail] = useState(''); // New for Register
     const [error, setError] = useState('');
 
     const apiHost = `http://${window.location.hostname}:8080`;
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        const endpoint = isRegistering ? '/api/register' : '/api/login';
+        const endpoint = view === 'register' ? '/api/register' : '/api/login';
 
         try {
+            const body: any = { username, password };
+            if (view === 'register') body.email = email; // Include email for registration
+
             const res = await fetch(`${apiHost}${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password }),
+                body: JSON.stringify(body),
             });
 
             if (!res.ok) {
                 const errorText = await res.text();
-                // If it's pure text, use it. If it's JSON (unexpected), handle it gracefully?
-                // http.Error returns plain text usually with a newline.
-                throw new Error(errorText.trim() || (isRegistering ? 'Registration failed' : 'Login failed'));
+                throw new Error(errorText.trim() || (view === 'register' ? 'Registration failed' : 'Login failed'));
             }
 
-            if (isRegistering) {
-                // Auto login after register or just switch to login? 
-                // Let's switch to login for simplicity or just auto-login if backend returned token (backend register currently doesn't return token)
-                // Backend register returns 201 Created. So let's try to login immediately.
+            if (view === 'register') {
+                // Auto login
                 const loginRes = await fetch(`${apiHost}/api/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -45,15 +54,34 @@ const AuthScreen = ({ onLogin }) => {
             }
 
         } catch (err) {
-            setError(err.message);
+            if (err instanceof Error) {
+                setError(err.message);
+            } else {
+                setError('An unknown error occurred');
+            }
         }
     };
 
+    if (view === 'forgot') {
+        return <ForgotPassword
+            onBack={() => setView('login')}
+            onResetSent={(email) => { setEmailForReset(email); setView('reset'); }}
+        />;
+    }
+
+    if (view === 'reset') {
+        return <ResetPassword
+            email={emailForReset}
+            onBack={() => setView('login')}
+            onSuccess={() => { setView('login'); alert("Password reset successful! Please login."); }}
+        />;
+    }
+
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+        <div className="flex flex-col items-center justify-center min-h-screen animate-gradient p-4">
             <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm">
                 <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-violet-500 mb-6 text-center">
-                    {isRegistering ? 'Join Meets' : 'Welcome Back'}
+                    {view === 'register' ? 'Join Meets' : 'Welcome Back'}
                 </h2>
 
                 {error && <div className="bg-red-100 text-red-600 p-2 rounded mb-4 text-sm text-center">{error}</div>}
@@ -69,6 +97,17 @@ const AuthScreen = ({ onLogin }) => {
                             required
                         />
                     </div>
+                    {view === 'register' && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-gray-400 text-xs">(optional but recommended)</span></label>
+                            <input
+                                type="email"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none"
+                                value={email}
+                                onChange={e => setEmail(e.target.value)}
+                            />
+                        </div>
+                    )}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
                         <input
@@ -80,21 +119,33 @@ const AuthScreen = ({ onLogin }) => {
                         />
                     </div>
 
+                    {view === 'login' && (
+                        <div className="text-right">
+                            <button
+                                type="button"
+                                onClick={() => setView('forgot')}
+                                className="text-sm text-violet-600 hover:text-violet-800"
+                            >
+                                Forgot Password?
+                            </button>
+                        </div>
+                    )}
+
                     <button
                         type="submit"
                         className="w-full bg-gradient-to-r from-pink-500 to-violet-500 text-white font-bold py-3 px-4 rounded-xl hover:opacity-90 transition-all transform active:scale-95"
                     >
-                        {isRegistering ? 'Create Account' : 'Login'}
+                        {view === 'register' ? 'Create Account' : 'Login'}
                     </button>
                 </form>
 
                 <div className="mt-4 text-center text-sm text-gray-500">
-                    {isRegistering ? 'Already have an account? ' : 'New to Meets? '}
+                    {view === 'register' ? 'Already have an account? ' : 'New to Meets? '}
                     <button
                         className="text-violet-600 font-bold hover:underline"
-                        onClick={() => setIsRegistering(!isRegistering)}
+                        onClick={() => setView(view === 'register' ? 'login' : 'register')}
                     >
-                        {isRegistering ? 'Login' : 'Register'}
+                        {view === 'register' ? 'Login' : 'Register'}
                     </button>
                 </div>
             </div>

@@ -3,11 +3,12 @@ import SwipeCard from './components/SwipeCard'
 import Chat from './components/Chat'
 import AuthScreen from './components/AuthScreen'
 import ProfileEditor from './components/ProfileEditor'
+import { User } from './types'
 
 function App() {
-  const [token, setToken] = useState(localStorage.getItem('token'))
-  const [user, setUser] = useState(localStorage.getItem('username'))
-  const [profiles, setProfiles] = useState([])
+  const [token, setToken] = useState<string | null>(localStorage.getItem('token'))
+  const [user, setUser] = useState<string | null>(localStorage.getItem('username'))
+  const [profiles, setProfiles] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [view, setView] = useState('swipe') // 'swipe', 'chat', 'profile'
@@ -52,7 +53,7 @@ function App() {
       })
   }, [token])
 
-  const handleLogin = (newToken, newUsername) => {
+  const handleLogin = (newToken: string, newUsername: string) => {
     setToken(newToken)
     setUser(newUsername)
     localStorage.setItem('token', newToken)
@@ -66,7 +67,7 @@ function App() {
     localStorage.removeItem('username')
   }
 
-  const handleSwipe = (direction) => {
+  const handleSwipe = (direction: string) => {
     console.log(`Swiped ${direction} on ${profiles[0].name}`)
     // Remove the first profile
     setProfiles(prev => prev.slice(1))
@@ -77,7 +78,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen animate-gradient flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-violet-500">
           Meets

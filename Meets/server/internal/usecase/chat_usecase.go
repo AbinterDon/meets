@@ -45,3 +45,16 @@ func (uc *ChatUsecase) GetHistory(ctx context.Context, username1, username2 stri
 
 	return uc.messageRepo.GetHistory(ctx, u1.ID, u2.ID)
 }
+
+func (uc *ChatUsecase) MarkMessagesAsRead(ctx context.Context, username, otherUsername string) error {
+	user, err := uc.userRepo.GetByUsername(ctx, username)
+	if err != nil {
+		return err
+	}
+	otherUser, err := uc.userRepo.GetByUsername(ctx, otherUsername)
+	if err != nil {
+		return err
+	}
+
+	return uc.messageRepo.MarkAsRead(ctx, user.ID, otherUser.ID)
+}

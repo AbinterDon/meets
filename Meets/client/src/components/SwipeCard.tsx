@@ -1,9 +1,15 @@
 import React from 'react';
+import { User } from '../types';
 
-const SwipeCard = ({ profile, onSwipe }) => {
+interface SwipeCardProps {
+  profile: User;
+  onSwipe: (direction: string) => void;
+}
+
+const SwipeCard: React.FC<SwipeCardProps> = ({ profile, onSwipe }) => {
   if (!profile) return null;
 
-  const handleSwipe = async (direction) => {
+  const handleSwipe = async (direction: string) => {
     if (direction === 'right') {
       try {
         const res = await fetch(`http://${window.location.hostname}:8080/api/like`, {
@@ -26,15 +32,15 @@ const SwipeCard = ({ profile, onSwipe }) => {
   };
 
   return (
-    <div className="max-w-sm rounded-2xl overflow-hidden shadow-xl bg-white m-4 border border-gray-200">
-      <div className="relative h-96 w-full">
+    <div className="max-w-md w-full rounded-2xl overflow-hidden shadow-xl bg-white m-4 border border-gray-200">
+      <div className="relative h-[500px] w-full">
         <div className="absolute inset-0 bg-gray-300">
           {profile.image_url ? (
             <img
               src={profile.image_url}
               alt={profile.name}
               className="w-full h-full object-cover"
-              onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x600?text=No+Image'; }}
+              onError={(e) => { const target = e.target as HTMLImageElement; target.onerror = null; target.src = 'https://via.placeholder.com/400x600?text=No+Image'; }}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gray-200 text-6xl text-gray-400">
@@ -46,6 +52,18 @@ const SwipeCard = ({ profile, onSwipe }) => {
         <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
           <h2 className="text-3xl font-bold">{profile.name}, {profile.age}</h2>
           <p className="text-lg text-gray-200 mt-1">{profile.bio}</p>
+          {profile.interests && profile.interests.length > 0 && (
+            <>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-white/80 mt-4 mb-2">Interests</h3>
+              <div className="flex flex-wrap gap-2">
+                {profile.interests.map((interest, idx) => (
+                  <span key={idx} className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-sm font-semibold text-white">
+                    {interest}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
       <div className="flex justify-center gap-6 p-6">
