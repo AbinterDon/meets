@@ -1,0 +1,19 @@
+# Binaries
+bin/
+main
+server
+app
+
+# Uploads (keep directory but ignore files)
+uploads/*
+!uploads/.gitkeep
+
+# Environment Variables
+.env
+
+# MacOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
